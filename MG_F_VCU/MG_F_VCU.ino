@@ -114,6 +114,10 @@ void setup() {
   // pinMode(chargebutton, INPUT_PULLUP);
   pinMode(maincontactorsignal, INPUT_PULLUP);
 
+  //gauge pin setup
+  analogWrite(rpm, 127);
+  analogWrite(motortempgauge, 70);
+
 
   //Switch off contactors on startup
   digitalWrite (precharge, LOW);
@@ -132,8 +136,7 @@ void setup() {
     digitalWrite (startbutton, HIGH);
     digitalWrite (negcontactor, HIGH);
     digitalWrite (precharge, HIGH);   //activate prehcharge on start up
-    analogWrite(rpm, 128);
-    analogWriteFrequency(rpm, 2000); //Start rpm at intial high to simulate engine start.Serial.print("normal startup");
+    analogWriteFrequency(rpm, 68);//Start rpm at intial high to simulate engine start.Serial.print("normal startup");
     //digitalWrite(csdn, LOW);
     digitalWrite(fwd, HIGH);
     digitalWrite(MG2, HIGH);
@@ -177,22 +180,22 @@ void canSniff1(const CAN_message_t &msg) {
     Batmax = Batmaxraw;
   }
   /*//  Simp BMS  Uncomment when switched over to SIMP BMS
-  if (msg.id == 0X373)
-  {
+    if (msg.id == 0X373)
+    {
     Batmaxraw = (( msg.buf[3] << 8) | msg.buf[2]); // Needed if VCU is controlling Outlander charger. Can be removed once SIMP BMS does that
     Batmax = Batmaxraw;
-  }
-   if (msg.id == 0X355)
-  {
+    }
+    if (msg.id == 0X355)
+    {
     Batterysoc = (( msg.buf[1] << 8) | msg.buf[0]);;
-}
-if (msg.id == 0X356)
-  {
+    }
+    if (msg.id == 0X356)
+    {
      Batvoltraw = (( msg.buf[1] << 0) | msg.buf[1]);
      Batvolt = Batvoltraw / 32;
     }
-    
-    */
+
+  */
 
 
 }
@@ -249,14 +252,21 @@ void closecontactor() { //--------contactor close cycle
 
 void gauges() {
   // RPM
-  float rpm = rpmraw / 32;
-  int rpmpulse = rpm * 2;
-  if (rpmpulse < 1600) //power steering is expecting to see engine idle at least.
+  //analogWrite(rpm, 127);
+  float rpm1 = rpmraw / 32;
+  int rpmpulse = rpm1 / 30;
+  int rpmsend;
+  if (rpmpulse < 30) //power steering is expecting to see engine idle at least.
   {
-    rpmpulse = 1602;
+    rpmsend = 30;
+  }
+  else
+  {
+    rpmsend = rpmpulse;
   }
 
-  analogWriteFrequency(rpm, rpmpulse);
+
+
   // Battery light
   if (AuxBattVolt < 13)
   {
@@ -267,11 +277,18 @@ void gauges() {
     digitalWrite(batterylight, LOW);
   }
   // Battery Soc
-  analogWriteFrequency(fuel, 500);
+  // analogWriteFrequency(fuel, 255);
   int fuelpwm = Batterysoc * 2.43;
   int fuelfreq = fuelpwm + 12.8;
-  analogWrite(fuel, fuelfreq);
 
+  // send signals
+  if (chargerEVSE.check()) { //100ms timer
+    {
+      analogWriteFrequency(rpm, rpmsend);
+      analogWrite(fuel, fuelfreq);
+    }
+  }
+  //analogWriteFrequency(motortempgauge, 255);
   //To Do
 
   // temperature from coolant.
@@ -323,7 +340,7 @@ void charging() {
 
 
 void loop() {
-  if (chargemode == 1)
+  if (chargemode == 1) //normal driving
   {
     Can0.events();
     closecontactor(); //checks precharge level and close contactor
@@ -331,7 +348,7 @@ void loop() {
     gauges(); //send information to guages
 
   }
-  else if (chargemode == 2)
+  else if (chargemode == 2) // charging
   {
     Can0.events();
     charging();
@@ -340,7 +357,6 @@ void loop() {
   }
   /// To Do
 
-  // Interupt to stop charge.
 
 
 
