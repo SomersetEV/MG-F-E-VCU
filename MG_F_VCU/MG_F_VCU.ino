@@ -164,39 +164,30 @@ void canSniff1(const CAN_message_t &msg) {
   {
     HVbus = (( msg.buf[6] << 8) | msg.buf[5]); //Voltage on Prius HVBUS
     HVbus = HVbus / 32;
-    Batvoltraw = (( msg.buf[2] << 8) | msg.buf[1]); //OI BMS Battery voltage
-    Batvolt = Batvoltraw / 32;
     rpmraw = (( msg.buf[4] << 8) | msg.buf[3]); //Prius motor rpm
     Batterysoc = msg.buf[7];
 
+  }
+   if (msg.id == 0x355)
+  {
+   Batterysoc = (( msg.buf[1] << 8) | msg.buf[0]);
+
+  }
+  if (msg.id == 0x356)//battery voltage from SIMP BMS
+  {
+
+    Batvoltraw = (( msg.buf[1] << 8) | msg.buf[0]);
+    Batvolt = Batvoltraw / 32;
   }
   if (msg.id == 0x400)
   {
     AuxBattVolt = msg.buf[0]; //Prius inverter aux voltage
   }
-  if (msg.id == 0x3FD) // OI BMS
+  if (msg.id == 0x373) // highest cell voltage from SIMP BMS
   {
-    Batmaxraw = (( msg.buf[1] << 8) | msg.buf[0]);
+    Batmaxraw = (( msg.buf[3] << 8) | msg.buf[2]);
     Batmax = Batmaxraw;
   }
-  /*//  Simp BMS  Uncomment when switched over to SIMP BMS
-    if (msg.id == 0X373)
-    {
-    Batmaxraw = (( msg.buf[3] << 8) | msg.buf[2]); // Needed if VCU is controlling Outlander charger. Can be removed once SIMP BMS does that
-    Batmax = Batmaxraw;
-    }
-    if (msg.id == 0X355)
-    {
-    Batterysoc = (( msg.buf[1] << 8) | msg.buf[0]);;
-    }
-    if (msg.id == 0X356)
-    {
-     Batvoltraw = (( msg.buf[1] << 0) | msg.buf[1]);
-     Batvolt = Batvoltraw / 32;
-    }
-
-  */
-
 
 }
 
@@ -228,25 +219,25 @@ void coolant()
 
 void closecontactor() { //--------contactor close cycle
   // if hv bus is within a few volts of battery voltage and OI is sending close main contactor, close main contactor and open precharge. Also activate dc-dc
-  //HVdiff = Batvolt - HVbus; //calculates difference between battery voltage and HV bus
+  HVdiff = Batvolt - HVbus; //calculates difference between battery voltage and HV bus
   //Serial.print (HVdiff);
   digitalRead(maincontactorsignal);
   maincontactorsingalvalue = digitalRead(maincontactorsignal);
   // Serial.print (maincontactorsingalvalue);
-  if (maincontactorsingalvalue == 0)// & HVdiff < 10)
+  if (maincontactorsingalvalue == 0 &&  HVdiff < 5)
   {
     digitalWrite (maincontactor, HIGH);
     //analogWriteFrequency(dcdccontrol, 200); //change this number to change dcdc voltage output
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
   }
-  else if (maincontactorsingalvalue == 1)
+  else if (maincontactorsingalvalue == 1 or HVdiff >5)
   {
     digitalWrite (maincontactor, LOW);
     digitalWrite (negcontactor, HIGH);
     // analogWriteFrequency(dcdccontrol, 200); //change this number to change dcdc voltage output
-    // digitalWrite (dcdcon, LOW);
-    digitalWrite (precharge, HIGH);
+    digitalWrite (dcdcon, LOW);
+
   }
 }
 
