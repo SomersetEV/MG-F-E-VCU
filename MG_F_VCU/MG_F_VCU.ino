@@ -53,13 +53,13 @@ int chargestart = 28; // use for DC-DC pn charger?
 //int chargebutton = 12; 12v sinal not used
 
 //HV stuff
-int HVbus;
-int HVdiff;
-int Batvolt;
+float HVbus;
+float HVdiff;
+float Batvolt;
 int Batvoltraw;
 int AuxBattVolt;
 int Batmax;
-int Batmaxraw;
+float Batmaxraw;
 
 int chargemode;
 
@@ -138,7 +138,6 @@ void setup() {
     digitalWrite (precharge, HIGH);   //activate prehcharge on start up
     analogWriteFrequency(rpm, 68);//Start rpm at intial high to simulate engine start.Serial.print("normal startup");
     //digitalWrite(csdn, LOW);
-    digitalWrite(fwd, HIGH);
     digitalWrite(MG2, HIGH);
     Serial.print("normal startup");
     chargemode = 1;
@@ -177,7 +176,7 @@ void canSniff1(const CAN_message_t &msg) {
   {
 
     Batvoltraw = (( msg.buf[1] << 8) | msg.buf[0]);
-    Batvolt = Batvoltraw / 32;
+    Batvolt = Batvoltraw / 10;
   }
   if (msg.id == 0x400)
   {
@@ -220,22 +219,32 @@ void coolant()
 void closecontactor() { //--------contactor close cycle
   // if hv bus is within a few volts of battery voltage and OI is sending close main contactor, close main contactor and open precharge. Also activate dc-dc
   HVdiff = Batvolt - HVbus; //calculates difference between battery voltage and HV bus
-  //Serial.print (HVdiff);
+  
   digitalRead(maincontactorsignal);
   maincontactorsingalvalue = digitalRead(maincontactorsignal);
   // Serial.print (maincontactorsingalvalue);
   if (maincontactorsingalvalue == 0 &&  HVdiff < 5)
   {
-    digitalWrite (maincontactor, HIGH);
-    //analogWriteFrequency(dcdccontrol, 200); //change this number to change dcdc voltage output
+   // digitalWrite (maincontactor, HIGH);
+   digitalWrite(fwd, HIGH);
+    Serial.print (HVdiff);
+    Serial.println ();
+    Serial.print (Batvolt);
+    Serial.println ();
+    Serial.print ("Close main contactor");
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
   }
   else if (maincontactorsingalvalue == 1 or HVdiff >5)
   {
+    Serial.print ("HV diff");
+    Serial.print (HVdiff);
+    Serial.println ();
+    Serial.print ("conactor value");
+    Serial.print (maincontactorsingalvalue);
+    Serial.println ();
     digitalWrite (maincontactor, LOW);
     digitalWrite (negcontactor, HIGH);
-    // analogWriteFrequency(dcdccontrol, 200); //change this number to change dcdc voltage output
     digitalWrite (dcdcon, LOW);
 
   }
