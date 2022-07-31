@@ -133,7 +133,7 @@ void setup() {
   digitalRead (simpprox);
   if (digitalRead(simpprox)) // run normal start up
   {
-    digitalWrite (startbutton, HIGH);
+    // digitalWrite (startbutton, HIGH);
     digitalWrite (negcontactor, HIGH);
     digitalWrite (precharge, HIGH);   //activate prehcharge on start up
     analogWriteFrequency(rpm, 68);//Start rpm at intial high to simulate engine start.Serial.print("normal startup");
@@ -167,9 +167,9 @@ void canSniff1(const CAN_message_t &msg) {
     Batterysoc = msg.buf[7];
 
   }
-   if (msg.id == 0x355)
+  if (msg.id == 0x355)
   {
-   Batterysoc = (( msg.buf[1] << 8) | msg.buf[0]);
+    Batterysoc = (( msg.buf[1] << 8) | msg.buf[0]);
 
   }
   if (msg.id == 0x356)//battery voltage from SIMP BMS
@@ -219,14 +219,15 @@ void coolant()
 void closecontactor() { //--------contactor close cycle
   // if hv bus is within a few volts of battery voltage and OI is sending close main contactor, close main contactor and open precharge. Also activate dc-dc
   HVdiff = Batvolt - HVbus; //calculates difference between battery voltage and HV bus
-  
+
   digitalRead(maincontactorsignal);
   maincontactorsingalvalue = digitalRead(maincontactorsignal);
   // Serial.print (maincontactorsingalvalue);
   if (maincontactorsingalvalue == 0 &&  HVdiff < 5)
   {
-   // digitalWrite (maincontactor, HIGH);
-   digitalWrite(fwd, HIGH);
+    digitalWrite (maincontactor, HIGH);
+    /// digitalWrite (startbutton, HIGH);
+    digitalWrite(fwd, HIGH);
     Serial.print (HVdiff);
     Serial.println ();
     Serial.print (Batvolt);
@@ -234,8 +235,16 @@ void closecontactor() { //--------contactor close cycle
     Serial.print ("Close main contactor");
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
+    // Can IO start
+    CAN_message_t msg1;
+    msg1.id = (0x01);
+    msg1.len = 8;
+    msg1.buf[1] = 0x20;
+    Can0.write(msg1);
+
+
   }
-  else if (maincontactorsingalvalue == 1 or HVdiff >5)
+  else if (maincontactorsingalvalue == 1 or HVdiff > 5)
   {
     Serial.print ("HV diff");
     Serial.print (HVdiff);
@@ -251,19 +260,7 @@ void closecontactor() { //--------contactor close cycle
 }
 
 void gauges() {
-  // RPM
-  //analogWrite(rpm, 127);
-  float rpm1 = rpmraw / 32;
-  int rpmpulse = rpm1 / 30;
-  int rpmsend;
-  if (rpmpulse < 30) //power steering is expecting to see engine idle at least.
-  {
-    rpmsend = 30;
-  }
-  else
-  {
-    rpmsend = rpmpulse;
-  }
+
 
 
 
@@ -282,10 +279,25 @@ void gauges() {
   int fuelfreq = fuelpwm + 12.8;
 
   // send signals
+
   if (chargerEVSE.check()) { //100ms timer
     {
+      // RPM
+      //analogWrite(rpm, 127);
+      float rpm1 = rpmraw / 32;
+      int rpmpulse = rpm1 / 30;
+      int rpmsend;
+      if (rpmpulse < 30) //power steering is expecting to see engine idle at least.
+      {
+        rpmsend = 30;
+      }
+      else
+      {
+        rpmsend = rpmpulse;
+      }
       analogWriteFrequency(rpm, rpmsend);
       analogWrite(fuel, fuelfreq);
+      
     }
   }
   //analogWriteFrequency(motortempgauge, 255);
