@@ -156,6 +156,7 @@ void setup() {
     chargemode = 2;
   }
   delay(1000);
+
 }
 
 void canSniff1(const CAN_message_t &msg) {
@@ -286,7 +287,7 @@ void gauges() {
       }
       analogWriteFrequency(rpm, rpmsend);
       analogWrite(fuel, fuelfreq);
-      
+
     }
   }
   //analogWriteFrequency(motortempgauge, 255);
@@ -341,6 +342,7 @@ void charging() {
 
 
 void loop() {
+
   if (chargemode == 1) //normal driving
   {
     Can0.events();
