@@ -220,19 +220,14 @@ void closecontactor() { //--------contactor close cycle
   // if hv bus is within a few volts of battery voltage and OI is sending close main contactor, close main contactor and open precharge. Also activate dc-dc
   HVdiff = Batvolt - HVbus; //calculates difference between battery voltage and HV bus
 
-  digitalRead(maincontactorsignal);
-  maincontactorsingalvalue = digitalRead(maincontactorsignal);
+  //digitalRead(maincontactorsignal);
+  //maincontactorsingalvalue = digitalRead(maincontactorsignal);
   // Serial.print (maincontactorsingalvalue);
-  if (maincontactorsingalvalue == 0 &&  HVdiff < 5)
+  if (HVbus > 250 &&  HVdiff < 5)
   {
     digitalWrite (maincontactor, HIGH);
     /// digitalWrite (startbutton, HIGH);
     digitalWrite(fwd, HIGH);
-    Serial.print (HVdiff);
-    Serial.println ();
-    Serial.print (Batvolt);
-    Serial.println ();
-    Serial.print ("Close main contactor");
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
     // Can IO start
@@ -244,14 +239,8 @@ void closecontactor() { //--------contactor close cycle
 
 
   }
-  else if (maincontactorsingalvalue == 1 or HVdiff > 5)
+  else if (HVbus < 250 or HVdiff > 5)
   {
-    Serial.print ("HV diff");
-    Serial.print (HVdiff);
-    Serial.println ();
-    Serial.print ("conactor value");
-    Serial.print (maincontactorsingalvalue);
-    Serial.println ();
     digitalWrite (maincontactor, LOW);
     digitalWrite (negcontactor, HIGH);
     digitalWrite (dcdcon, LOW);
