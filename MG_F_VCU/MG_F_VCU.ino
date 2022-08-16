@@ -1,9 +1,208 @@
 #include <FlexCAN_T4.h>
 #include <Metro.h>
+
+#include <ADC.h>
+#include <ADC_util.h>
+#include <EEPROM.h>
+
+//CAN Setup
 FlexCAN_T4<CAN0, RX_SIZE_256, TX_SIZE_16> Can0;
 #define NUM_TX_MAILBOXES 6
 #define NUM_RX_MAILBOXES 6
 CAN_message_t msg;
+
+signed long loopTime = 0;
+
+void canRX_289(const CAN_message_t &msg); //Inverter RPM, Battery and Torque
+void canRX_299(const CAN_message_t &msg); //Inverter Temps
+void canRX_351(const CAN_message_t &msg); //BMS Status
+void canRX_355(const CAN_message_t &msg); //BMS Status
+void canRX_356(const CAN_message_t &msg); //BMS HV Voltage
+void canRX_377(const CAN_message_t &msg); //Outlander Charger Low voltage stats
+void canRX_389(const CAN_message_t &msg); //Outlander Charger HV stats
+void canRX_732(const CAN_message_t &msg); //Inverter Current
+void canRX_733(const CAN_message_t &msg); //Inverter Temps
+void dashComms();                         //update the dash-board
+void bmsComms();                          //Comms to the BMS - Set Key on
+
+void dogFood();
+void menu();
+void readPins();
+void readPedal();
+void inverterComms();
+void tempCheck();
+void showInfo();
+void loadDefault();
+void saveVarsToEEPROM();
+void stateHandler();
+
+//Metro Timers
+
+Metro timer50_1 = Metro(50);     //inverter timer
+Metro timer50_2 = Metro(50);     //De-bounce check
+Metro timer100_1 = Metro(100);   //2nd inverter timer
+Metro timer100_2 = Metro(96);    //longer Debounce
+Metro timer100_3 = Metro(110);   //Temp handler
+Metro timer500_1 = Metro(50);    //pedal debug timer
+Metro timer1000_1 = Metro(1000); //General 1s timer
+Metro timer2000_1 = Metro(2000); //Serial update timer
+Metro timer30s_1 = Metro(30000); //30Sec Timer to check DC-DC State
+Metro timer10_1 = Metro(10);     //Dash coms timer - needs to be fast for stepper motor
+
+
+
+//ADC setup
+
+ADC *adc = new ADC();
+
+/*/ Define Outputs
+#define OUT1 6    //NEG Contactor
+#define OUT2 9    //PRE Charge Contactor
+#define OUT3 10   //Drive Contactor
+#define OUT4 11   //Brake Lights
+#define OUT5 12   //Pump
+#define OUT6 24   //FAN
+#define OUT7 25   // No connection
+#define OUT8 28   //DC -DC Enable
+#define OUT9 29   //Temp Gauge
+#define OUT10 33  //RED LED
+#define OUT11 36  //Green LED
+#define OUT12 37  //Reverse Lights
+#define LEDpin 13 //Builtin LED
+
+//Define Inputs
+#define ISO_IN1 2  //FWD
+#define ISO_IN2 3  //START
+#define ISO_IN3 4  //Brake
+#define ISO_IN4 5  //REV
+#define ISO_IN5 26 // MAP 2 ECO
+#define ISO_IN6 27 // MAP 3 SPORT
+#define ISO_IN7 32 // IGNITION
+#define ISO_IN8 21 // PP Detect
+*/
+
+#define POT_A 23 //POT A
+
+//Setup Variables
+
+uint8_t brake_pedal; //Brake lights
+
+uint8_t start;
+uint8_t ppDetect;    //Prox pilot pin
+uint8_t ignition;    //ignition
+uint8_t dir_FWD;     //Drive Switch is set to forward
+uint8_t dir_REV;     //dRIVE Sitch is to Reverse
+uint8_t dir_NEUTRAL; //Set Neutral as the default state
+uint8_t BMS_Status;  //BMS Status
+uint8_t BMS_SOC;
+uint8_t inverterFunction = 0x00;
+uint8_t BMS_keyOn = 0;
+
+float BMS_avgtmp; //BMS Battery AVG Temp
+float currentact; //BMS Current
+float BMS_packvoltage;
+int BMS_discurrent;
+
+unsigned long pretimer1;
+
+
+int chargerTemp1 = 0;
+int chargerTemp2 = 0;
+int chargerTemp3 = 0;
+int chargerTemp4 = 0;
+int chargerHVcurrent = 0;
+uint8_t chargerStatus;
+int avgChargerTemp = 0;
+
+int motorRPM = 0;
+int motorTempPeak = 0;
+int motorTemp1 = 0;
+int motorTemp2 = 0;
+uint16_t motorHVbatteryVolts = 0;
+int motorTorque = 0;
+int motorCurrent1 = 0;
+int motorCurrent2 = 0;
+int avgMotorTemp = 0;
+
+int inverterTemp1 = 0;
+int inverterTemp2 = 0;
+int avgInverterTemp = 0;
+
+byte torqueHibyte = 0;
+byte torqueLoByte = 0;
+int torqueRequest = 0;
+int targetTorque = 0;
+int curentTorque = 0;
+int throttlePosition = 0;
+uint8_t pedalDebug = 0;
+uint8_t inverterEnable = 1;
+int regenTarget = 0;       // target regen torque
+uint32_t regenTimer = 0;   // timer for regen delay
+uint32_t regenDelay = 250; //delay before regen Starts
+uint8_t regenState = 0;    //Are we requesting regen
+uint32_t brakeDelay = 0;
+int regenRequest = 0;
+
+int incomingByte;
+uint8_t menuLoad = 0;
+uint8_t showStats = 1;
+uint8_t pumpState = 0;
+uint8_t fanState = 0;
+
+//Setup the peddal map arrays..
+
+byte idx_j, idx_k; //index of tps,rpm bins
+int pedal_offset;
+
+const int num_rpm_bins = 21;
+const int tpsbins[21] = {0, 3, 5, 8, 10, 13, 18, 20, 23, 25, 28, 32, 34, 40, 50, 60, 70, 80, 90, 100, 101};
+
+const int rpmbins[num_rpm_bins] = {
+    250, 500, 625, 750, 1000, 1250, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 10000};
+
+
+const int pedal_map_three[21][22] = {  //Sport
+    //map 3..
+    /*250*/ {0, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*500*/ {-10, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*625*/ {-20, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*750*/ {-30, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*1000*/ {-50, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*1250*/ {-70, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*1500*/ {-90, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*2000*/ {-110, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*2500*/ {-130, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*3000*/ {-150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*3500*/ {-150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*4000*/ {-150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*4500*/ {-150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*5000*/ {-160, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*5500*/ {-180, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*6000*/ {-200, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*6500*/ {-200, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*7000*/ {-225, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*7500*/ {-250, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*8000*/ {-300, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+    /*10000*/ {-300, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+};
+
+
+//VCU Staus
+
+#define boot 1
+#define ready 2
+#define driveNeutral 3
+#define driveForward 4
+#define driveReverse 5
+
+
+uint8_t VCUstatusChangeCounter = 0;    //used for hysterisys to stop jitter on VCU status
+uint8_t VCUstatusChangeThreshold = 60; // n loops
+
+uint8_t VCUstatus = 1;
+
+uint8_t contactorState = 0; //state of contactors
+
 
 //////timers
 Metro coolanttimer = Metro(1000);
@@ -118,6 +317,9 @@ void setup() {
   analogWrite(rpm, 127);
   analogWrite(motortempgauge, 70);
 
+  //throttle
+   pinMode(POT_A, INPUT); //Throtle Pot A
+
 
   //Switch off contactors on startup
   digitalWrite (precharge, LOW);
@@ -125,6 +327,41 @@ void setup() {
   digitalWrite (negcontactor, LOW);
 
   chargemode = 0;
+
+  //Setup ADC
+
+  adc->adc0->setAveraging(16);                                    // set number of averages
+  adc->adc0->setResolution(16);                                   // set bits of resolution
+  adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED); // change the conversion speed
+  adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);     // change the sampling speed
+
+  adc->adc1->setAveraging(16);                                    // set number of averages
+  adc->adc1->setResolution(16);                                   // set bits of resolution
+  adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED); // change the conversion speed
+  adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);     // change the sampling speed
+
+  //EEPROM Stored Vars
+
+uint8_t tempGaugeMin = EEPROM.read(1); //Temp Gauge min PWM
+uint8_t tempGaugeMax = EEPROM.read(2); //Temp Gauge Max PWM
+
+uint8_t pumpOnTemp = EEPROM.read(3);
+uint8_t pumpoffTemp = EEPROM.read(4);
+
+uint8_t fanOnTemp = EEPROM.read(5);
+uint8_t fanOffTemp = EEPROM.read(6);
+
+int maxTorque = EEPROM.read(31) * 255 + EEPROM.read(30);
+int minTorque = EEPROM.read(8);                              //Used for creeping
+int tpslowOffset = EEPROM.read(21) * 255 + EEPROM.read(20);  //Value when foot off pedal
+int tpshighOffset = EEPROM.read(23) * 255 + EEPROM.read(22); //Value when foot on pedal
+int torqueIncrement = EEPROM.read(11);                       //used for default rpm based regen
+uint8_t setTpsLow = 0;
+uint8_t setTpsHigh = 0;
+
+uint8_t active_map = 1;   //Active Pedal map
+uint8_t map2;         //Eco Map
+uint8_t map3;         //Sport MAp
 
   delay(3000);
 
@@ -157,6 +394,8 @@ void setup() {
   }
   delay(1000);
 
+
+ADC::Sync_result result;
 }
 
 void canSniff1(const CAN_message_t &msg) {
@@ -231,12 +470,7 @@ void closecontactor() { //--------contactor close cycle
     digitalWrite(fwd, HIGH);
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
-    // Can IO start
-    CAN_message_t msg1;
-    msg1.id = (0x01);
-    msg1.len = 8;
-    msg1.buf[1] = 0x20;
-    Can0.write(msg1);
+   
 
 
   }
@@ -339,6 +573,160 @@ void charging() {
   }
 
 }
+void inverterComms()
+{
+  if (timer50_1.check() == 1)
+  {
+
+    if (regenState == 0 && VCUstatus == 4 && motorRPM > 2000) // Increment Torque delivery
+    {
+
+      if (curentTorque < targetTorque)
+      {
+        curentTorque += torqueIncrement;
+        torqueRequest = curentTorque;
+      }
+
+      if (curentTorque >= targetTorque)
+      {
+        torqueRequest = targetTorque;
+        curentTorque = targetTorque;
+      }
+    }
+    else if (regenState == 0 && VCUstatus == 4 && motorRPM < 2000)
+    {
+      torqueRequest = targetTorque;
+      curentTorque = torqueRequest;
+    }
+
+    if (active_map == 3)  // No need to increment in 'sport' mode
+    {
+      torqueRequest = targetTorque;
+      curentTorque = torqueRequest;
+    }
+
+    if (regenState == 1 && VCUstatus == 4)
+
+    {
+      if (regenTarget < regenRequest) // increment Regen
+      {
+        regenRequest -= 5;
+        torqueRequest = regenRequest;
+        // Serial.println("Regen inc.");
+      }
+      else
+      regenRequest = regenTarget;
+      torqueRequest = regenRequest;
+    }
+
+    if (regenState == 2 && VCUstatus == 4)
+
+    {
+      if (regenTarget > regenRequest) // increment Regen off
+      {
+        regenRequest += 30;
+        torqueRequest = regenRequest;
+        // Serial.println("Regen Dec.");
+      }
+    }
+
+    if (torqueRequest > (2000))
+    {
+      torqueRequest = 0;
+      Serial.println("--!OVER TOURQUE!--");
+    }
+    if (torqueRequest < (-1000))
+    {
+      torqueRequest = 0;
+      Serial.println("--!UNDER TOURQUE!--");
+    }
+
+    torqueRequest += 10000;
+
+    if (BMS_discurrent < currentact) //Decrese tourque if we are over current - Crude needs work..
+    {
+      torqueRequest -= 20;
+      Serial.println("--!OVER CURRENT!--");
+      if (torqueRequest < 0)
+      {
+        torqueRequest = 0;
+      }
+    }
+
+    if (pedalDebug == 1)
+    {
+      Serial.print("Offset: ");
+      Serial.print(pedal_offset);
+      Serial.print(" Tourque Request: ");
+      Serial.println(torqueRequest - 10000);
+      Serial.print("Regen Target:");
+      Serial.print(regenTarget);
+      Serial.print(" Regen Request: ");
+      Serial.print(regenRequest);
+      Serial.print(" Motor Torque ");
+      Serial.println(motorTorque);
+    }
+    if (inverterEnable != 1)
+    {
+      inverterFunction = 0x00;
+    }
+    torqueLoByte = lowByte(torqueRequest);
+    torqueHibyte = highByte(torqueRequest);
+    msg.id = 0x287;
+    msg.len = 8;
+    msg.buf[0] = 0;
+    msg.buf[1] = 0;
+    msg.buf[2] = torqueHibyte;
+    msg.buf[3] = torqueLoByte;
+    msg.buf[4] = 0;
+    msg.buf[5] = 0;
+    msg.buf[6] = inverterFunction;
+    msg.buf[7] = 0;
+    Can0.write(msg);
+    torqueRequest = 0;
+  }
+
+  if (timer100_1.check() == 1)
+  {
+    msg.id = 0x371;
+    msg.len = 8;
+    msg.buf[0] = 48;
+    msg.buf[1] = 0;
+    msg.buf[2] = 0;
+    msg.buf[3] = 0;
+    msg.buf[4] = 0;
+    msg.buf[5] = 0;
+    msg.buf[6] = 0;
+    msg.buf[7] = 0;
+    Can0.write(msg);
+    delay(1);
+    msg.id = 0x285;
+    msg.len = 8;
+    msg.buf[0] = 0;
+    msg.buf[1] = 0;
+    msg.buf[2] = 20;
+    msg.buf[3] = 57;
+    msg.buf[4] = 143;
+    msg.buf[5] = 254;
+    msg.buf[6] = 12;
+    msg.buf[7] = 16;
+    Can0.write(msg);
+    delay(1);
+
+    msg.id = 0x286;
+    msg.len = 8;
+    msg.buf[0] = 0;
+    msg.buf[1] = 0;
+    msg.buf[2] = 0;
+    msg.buf[3] = 61;
+    msg.buf[4] = 0;
+    msg.buf[5] = 0;
+    msg.buf[6] = 33;
+    msg.buf[7] = 0;
+    Can0.write(msg);
+  }
+}
+
 
 
 void loop() {
@@ -349,7 +737,6 @@ void loop() {
     closecontactor(); //checks precharge level and close contactor
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     gauges(); //send information to guages
-
   }
   else if (chargemode == 2) // charging
   {
@@ -359,7 +746,6 @@ void loop() {
     gauges(); //send information to guages
   }
   /// To Do
-
 
 
 
