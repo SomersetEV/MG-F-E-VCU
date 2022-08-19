@@ -15,9 +15,9 @@ Metro charger800 = Metro(800);
 Metro timer10ms = Metro(10);
 Metro timer50_1 = Metro(50); // Inverter timer
 
-//OI inputs
+//Output to IO
 int startbutton = 13;
-int brake = 14;
+//int brake = 14;
 int fwd = 15;
 int rev = 16;
 
@@ -28,6 +28,8 @@ int motortempgauge = 37;
 int fuel = 36;
 float rpmraw;
 int batterylight = 31;
+
+//Outlander Inverter control
 int motorTorque = 0;
 int motorRPM = 0;
 int motorTempPeak = 0;
@@ -36,22 +38,20 @@ int motorTemp2 = 0;
 int inverterTemp1 = 0;
 int inverterTemp2 = 0;
 int avgInverterTemp = 0;
-
-//inputs
 byte torqueHibyte = 0;
 byte torqueLoByte = 0;
 int torqueRequest = 0;
 int targetTorque = 0;
 int curentTorque = 0;
 int throttlePosition = 0;
-
+int Pot_A = 18; // was thermistor pin
+int brakeinput = 27; // ground input, orginally simppilot
 
 int dcdcon = 2;
 int dcdccontrol = 23; // 5v signal wire, not used
 
 //coolant temp and engine bay fan
 
-int Pot_A = 18; // was thermistor pin
 int enginefan = 17;
 int Vo;
 int coolanttemp;
@@ -70,7 +70,7 @@ int maincontactorsingalvalue = 1;
 //int MG2 = 25;// 12v signal not used was cdsn
 int negcontactor = 32;
 int simpprox = 26;
-//int simppilot = 27; grounded input not used
+//int simppilot = 27; grounded input, now used for brake light.
 int chargestart = 28; // use for DC-DC pn charger?
 //int chargebutton = 12; 12v sinal not used
 
@@ -100,7 +100,7 @@ int torqueIncrement = EEPROM.read(11);                       //used for default 
 uint8_t setTpsLow = 0;
 uint8_t setTpsHigh = 0;
 
-uint8_t active_map = 1;   //Active Pedal map
+uint8_t active_map = 3;   //Active Pedal map
 uint8_t map2;         //Eco Map
 uint8_t map3;         //Sport MAp
 
@@ -232,11 +232,11 @@ void setup() {
   // pinMode(startbutton, OUTPUT);
   pinMode(fwd, OUTPUT);
   pinMode(rev, OUTPUT);
-  pinMode(brake, OUTPUT);
+ // pinMode(brake, OUTPUT);
   pinMode(batterylight, OUTPUT);
   //inputs
   pinMode(simpprox, INPUT_PULLUP);
-  //  pinMode(simppilot, INPUT_PULLUP);
+  pinMode(brakeinput, INPUT_PULLUP);
   // pinMode(chargebutton, INPUT_PULLUP);
   pinMode(maincontactorsignal, INPUT_PULLUP);
   //throttle
@@ -493,12 +493,11 @@ void charging() {
 
 void readPedal()
 
-//Sync Analog read
-//compare the result
 
 {
   throttlepot = map(Pot_A, 1, 99, 0, 100); //change 1 and 99 to low and high offsets
   pedal_offset = pedal_map_three[idx_j][idx_k];  // Defualt to sport mode, change to pedal_map_one for ECO and pedal_map_two for Normal
+  targetTorque = (throttlepot * pedal_offset) * 2;
 
 }
 
@@ -516,6 +515,11 @@ void inverterComms()
     {
       torqueRequest = 0;
       Serial.println("--!UNDER TOURQUE!--");
+    }
+
+    if (brakeinput == 0)
+    {
+      torqueRequest = 0; //0 Torque if the brake is presed
     }
 
     CAN_message_t msg1;
