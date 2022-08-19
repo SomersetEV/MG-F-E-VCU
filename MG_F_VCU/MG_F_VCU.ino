@@ -2,6 +2,7 @@
 #include <Metro.h>
 #include <ADC.h>
 #include <ADC_util.h>
+#include <EEPROM.h>
 FlexCAN_T4<CAN0, RX_SIZE_256, TX_SIZE_16> Can0;
 #define NUM_TX_MAILBOXES 6
 #define NUM_RX_MAILBOXES 6
@@ -12,6 +13,7 @@ Metro coolanttimer = Metro(1000);
 Metro chargerEVSE = Metro(100);
 Metro charger800 = Metro(800);
 Metro timer10ms = Metro(10);
+Metro timer50_1 = Metro(50); // Inverter timer
 
 //OI inputs
 int startbutton = 13;
@@ -26,6 +28,23 @@ int motortempgauge = 37;
 int fuel = 36;
 float rpmraw;
 int batterylight = 31;
+int motorTorque = 0;
+int motorRPM = 0;
+int motorTempPeak = 0;
+int motorTemp1 = 0;
+int motorTemp2 = 0;
+int inverterTemp1 = 0;
+int inverterTemp2 = 0;
+int avgInverterTemp = 0;
+
+//inputs
+byte torqueHibyte = 0;
+byte torqueLoByte = 0;
+int torqueRequest = 0;
+int targetTorque = 0;
+int curentTorque = 0;
+int throttlePosition = 0;
+
 
 int dcdcon = 2;
 int dcdccontrol = 23; // 5v signal wire, not used
@@ -71,6 +90,108 @@ int throttlepot; //throttle reading
 int Batterysoc;
 
 
+//// Pedal and Map stuff
+
+int maxTorque = EEPROM.read(31) * 255 + EEPROM.read(30);
+int minTorque = EEPROM.read(8);                              //Used for creeping
+int tpslowOffset = EEPROM.read(21) * 255 + EEPROM.read(20);  //Value when foot off pedal
+int tpshighOffset = EEPROM.read(23) * 255 + EEPROM.read(22); //Value when foot on pedal
+int torqueIncrement = EEPROM.read(11);                       //used for default rpm based regen
+uint8_t setTpsLow = 0;
+uint8_t setTpsHigh = 0;
+
+uint8_t active_map = 1;   //Active Pedal map
+uint8_t map2;         //Eco Map
+uint8_t map3;         //Sport MAp
+
+//Setup the peddal map arrays..
+
+byte idx_j, idx_k; //index of tps,rpm bins
+int pedal_offset;
+
+const int num_rpm_bins = 21;
+const int tpsbins[21] = {0, 3, 5, 8, 10, 13, 18, 20, 23, 25, 28, 32, 34, 40, 50, 60, 70, 80, 90, 100, 101};
+
+const int rpmbins[num_rpm_bins] = {
+  250, 500, 625, 750, 1000, 1250, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 10000
+};
+
+const int pedal_map_one[21][22] = {   //Normal
+  //map 1..
+  /*250*/ {0, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*500*/ { -10, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*625*/ { -20, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*750*/ { -30, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*1000*/ { -50, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*1250*/ { -70, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*1500*/ { -90, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*2000*/ { -110, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*2500*/ { -130, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*3000*/ { -150, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*3500*/ { -150, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*4000*/ { -150, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*4500*/ { -150, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*5000*/ { -160, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*5500*/ { -180, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*6000*/ { -200, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*6500*/ { -200, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*7000*/ { -225, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*7500*/ { -250, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*8000*/ { -300, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+  /*10000*/ { -300, 0, 6, 6, 6, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5},
+};
+
+const int pedal_map_two[21][22] = {   //ECO
+  //map 2..
+  /*250*/ {0, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*500*/ { -10, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*625*/ { -20, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*750*/ { -30, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*1000*/ { -50, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*1250*/ { -70, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*1500*/ { -90, 0, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*2000*/ { -110, 0, 0, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*2500*/ { -130, 0, 0, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*3000*/ { -150, 0, 0, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*3500*/ { -150, 0, 0, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*4000*/ { -150, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*4500*/ { -150, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*5000*/ { -160, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*5500*/ { -180, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*6000*/ { -200, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*6500*/ { -200, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*7000*/ { -225, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*7500*/ { -250, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*8000*/ { -300, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+  /*10000*/ { -300, 0, 0, 3, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6},
+};
+
+const int pedal_map_three[21][22] = {  //Sport
+  //map 3..
+  /*250*/ {0, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*500*/ { -10, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*625*/ { -20, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*750*/ { -30, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*1000*/ { -50, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*1250*/ { -70, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*1500*/ { -90, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*2000*/ { -110, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*2500*/ { -130, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*3000*/ { -150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*3500*/ { -150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*4000*/ { -150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*4500*/ { -150, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*5000*/ { -160, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*5500*/ { -180, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*6000*/ { -200, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*6500*/ { -200, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*7000*/ { -225, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*7500*/ { -250, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*8000*/ { -300, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*10000*/ { -300, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+};
+
+
 void setup() {
   Serial.begin(115200); delay(400);
   Can0.begin();
@@ -94,17 +215,6 @@ void setup() {
   //Can0.onReceive(MB2,canSniff);
   Can0.mailboxStatus();
 
-//ADC setup
-
-ADC *adc = new ADC();
-
-//Setup ADC
-
-  adc->adc0->setAveraging(16);                                    // set number of averages
-  adc->adc0->setResolution(16);                                   // set bits of resolution
-  adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::MED_SPEED); // change the conversion speed
-  adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::MED_SPEED);     // change the sampling speed
-
 
 
   //outputs
@@ -117,7 +227,7 @@ ADC *adc = new ADC();
   pinMode(dcdcon, OUTPUT);
   pinMode(chargestart, OUTPUT);
   //pinMode(cpwm, OUTPUT);
-//  pinMode(MG2, OUTPUT);
+  //  pinMode(MG2, OUTPUT);
   pinMode(negcontactor, OUTPUT);
   // pinMode(startbutton, OUTPUT);
   pinMode(fwd, OUTPUT);
@@ -156,7 +266,7 @@ ADC *adc = new ADC();
     digitalWrite (precharge, HIGH);   //activate prehcharge on start up
     analogWriteFrequency(rpm, 68);//Start rpm at intial high to simulate engine start.Serial.print("normal startup");
     //digitalWrite(csdn, LOW);
-  
+
     Serial.print("normal startup");
     chargemode = 1;
 
@@ -178,12 +288,11 @@ ADC *adc = new ADC();
 }
 
 void canSniff1(const CAN_message_t &msg) {
-  if (msg.id == 0x3FF)
+  if (msg.id == 0x289)
   {
-    HVbus = (( msg.buf[6] << 8) | msg.buf[5]); //Voltage on Prius HVBUS
-    HVbus = HVbus / 32;
-    rpmraw = (( msg.buf[4] << 8) | msg.buf[3]); //Prius motor rpm
-    Batterysoc = msg.buf[7];
+    HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
+    rpmraw = (msg.buf[2] * 256 + msg.buf[3] - 20000); //Outlander inverter RPM
+    motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
 
   }
   if (msg.id == 0x355)
@@ -197,10 +306,25 @@ void canSniff1(const CAN_message_t &msg) {
     Batvoltraw = (( msg.buf[1] << 8) | msg.buf[0]);
     Batvolt = Batvoltraw / 10;
   }
-  if (msg.id == 0x400)
+
+  if (msg.id == 0x299)//battery voltage from SIMP BMS
   {
-    AuxBattVolt = msg.buf[0]; //Prius inverter aux voltage
+
+    //inverter Temps
+    motorTempPeak = (msg.buf[0] - 40);
+    inverterTemp1 = (msg.buf[1] - 40);
+    inverterTemp2 = (msg.buf[4] - 40);
+
+    avgInverterTemp = (inverterTemp1 + inverterTemp2) / 2;
+    coolanttemp = avgInverterTemp;
   }
+
+  if (msg.id == 0x377) // 12v sense from Charger
+  {
+    AuxBattVolt = float(((msg.buf[0] * 256) + msg.buf[1]) * 0.01);
+  }
+
+
   if (msg.id == 0x373) // highest cell voltage from SIMP BMS
   {
     Batmaxraw = (( msg.buf[3] << 8) | msg.buf[2]);
@@ -213,7 +337,7 @@ void coolant()
 {
   if (coolanttimer.check()) {
     //---------Temperature read
-// use canbus from inverter to get coolant temp
+    // use canbus from inverter to get coolant temp
     //--------- Activate engine bay fan
 
     if (coolanttemp > 40)
@@ -310,6 +434,22 @@ void gauges() {
 }
 
 void charging() {
+
+  if (timer50_1.check() == 1) { //disable inverter for charging
+    CAN_message_t msg1;
+    msg1.id = (0x287);
+    msg1.len = 8;
+    msg1.buf[0] = 0;
+    msg1.buf[1] = 0;
+    msg1.buf[2] = 0;
+    msg1.buf[3] = 0;
+    msg1.buf[4] = 0;
+    msg1.buf[5] = 0;
+    msg1.buf[6] = 0x00;
+    msg1.buf[7] = 0;
+    Can0.write(msg1);
+
+  }
   if (chargerEVSE.check()) { //100ms timer to send canbus messages
     if (Batmax < 4100) // as long as max cell is under 4100mV, send signal to EVSE.
     {
@@ -357,30 +497,107 @@ void readPedal()
 //compare the result
 
 {
-  throttlepot = analogRead(Pot_A);
-  // figure out how to turn into 0-100 reading for sending to inverter.
- 
-}
-void loop() {
-
-  if (chargemode == 1) //normal driving
-  {
-    Can0.events();
-    closecontactor(); //checks precharge level and close contactor
-    coolant(); // check coolant temperature and swtich on engine bay fan if needed.
-    gauges(); //send information to guages
-
-  }
-  else if (chargemode == 2) // charging
-  {
-    Can0.events();
-    charging();
-    coolant(); // check coolant temperature and swtich on engine bay fan if needed.
-    gauges(); //send information to guages
-  }
-  /// To Do
-
-
-
+  throttlepot = map(Pot_A, 1, 99, 0, 100); //change 1 and 99 to low and high offsets
+  pedal_offset = pedal_map_three[idx_j][idx_k];  // Defualt to sport mode, change to pedal_map_one for ECO and pedal_map_two for Normal
 
 }
+
+void inverterComms()
+{
+  if (timer50_1.check() == 1) {
+    torqueRequest = targetTorque;
+    curentTorque = torqueRequest;
+    if (torqueRequest > (2000))
+    {
+      torqueRequest = 0;
+      Serial.println("--!OVER TOURQUE!--");
+    }
+    if (torqueRequest < (-1000))
+    {
+      torqueRequest = 0;
+      Serial.println("--!UNDER TOURQUE!--");
+    }
+
+    CAN_message_t msg1;
+    msg1.id = (0x287);
+    msg1.len = 8;
+    msg1.buf[0] = 0;
+    msg1.buf[1] = 0;
+    msg1.buf[2] = torqueHibyte;
+    msg1.buf[3] = torqueLoByte;
+    msg1.buf[4] = 0;
+    msg1.buf[5] = 0;
+    msg1.buf[6] = 0x03;
+    msg1.buf[7] = 0;
+    Can0.write(msg1);
+    torqueRequest = 0;
+
+  }
+  if (chargerEVSE.check()) {
+      msg.id = 0x371;
+      msg.len = 8;
+      msg.buf[0] = 48;
+      msg.buf[1] = 0;
+      msg.buf[2] = 0;
+      msg.buf[3] = 0;
+      msg.buf[4] = 0;
+      msg.buf[5] = 0;
+      msg.buf[6] = 0;
+      msg.buf[7] = 0;
+      Can0.write(msg);
+      delay(1);
+      msg.id = 0x285;
+      msg.len = 8;
+      msg.buf[0] = 0;
+      msg.buf[1] = 0;
+      msg.buf[2] = 20;
+      msg.buf[3] = 57;
+      msg.buf[4] = 143;
+      msg.buf[5] = 254;
+      msg.buf[6] = 12;
+      msg.buf[7] = 16;
+      Can0.write(msg);
+      delay(1);
+
+      msg.id = 0x286;
+      msg.len = 8;
+      msg.buf[0] = 0;
+      msg.buf[1] = 0;
+      msg.buf[2] = 0;
+      msg.buf[3] = 61;
+      msg.buf[4] = 0;
+      msg.buf[5] = 0;
+      msg.buf[6] = 33;
+      msg.buf[7] = 0;
+      Can0.write(msg);
+    }
+
+
+
+  }
+
+
+  void loop() {
+
+    if (chargemode == 1) //normal driving
+    {
+      Can0.events();
+      closecontactor(); //checks precharge level and close contactor
+      coolant(); // check coolant temperature and swtich on engine bay fan if needed.
+      gauges(); //send information to guages
+      inverterComms();
+
+    }
+    else if (chargemode == 2) // charging
+    {
+      Can0.events();
+      charging();
+      coolant(); // check coolant temperature and swtich on engine bay fan if needed.
+      gauges(); //send information to guages
+    }
+    /// To Do
+
+
+
+
+  }
