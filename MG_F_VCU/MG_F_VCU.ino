@@ -17,7 +17,6 @@ Metro timer50_1 = Metro(50); // Inverter timer
 
 //Output to IO
 int startbutton = 13;
-//int brake = 14;
 int fwd = 15;
 int rev = 16;
 
@@ -168,7 +167,7 @@ const int pedal_map_two[21][22] = {   //ECO
 
 const int pedal_map_three[21][22] = {  //Sport
   //map 3..
-  /*250*/ {0, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
+  /*250*/ {1, 2, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
   /*500*/ { -10, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
   /*625*/ { -20, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
   /*750*/ { -30, 0, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 6},
@@ -232,15 +231,15 @@ void setup() {
   // pinMode(startbutton, OUTPUT);
   pinMode(fwd, OUTPUT);
   pinMode(rev, OUTPUT);
- // pinMode(brake, OUTPUT);
+  // pinMode(brake, OUTPUT);
   pinMode(batterylight, OUTPUT);
   //inputs
   pinMode(simpprox, INPUT_PULLUP);
   pinMode(brakeinput, INPUT_PULLUP);
   // pinMode(chargebutton, INPUT_PULLUP);
   pinMode(maincontactorsignal, INPUT_PULLUP);
-  //throttle
-  pinMode(Pot_A, INPUT); //Throtle Pot A
+  pinMode(Pot_A, INPUT);
+
 
   //gauge pin setup
   analogWrite(rpm, 127);
@@ -251,6 +250,7 @@ void setup() {
   digitalWrite (precharge, LOW);
   digitalWrite (maincontactor, LOW);
   digitalWrite (negcontactor, LOW);
+
 
   chargemode = 0;
 
@@ -409,8 +409,7 @@ void gauges() {
     {
       // RPM
       //analogWrite(rpm, 127);
-      float rpm1 = rpmraw / 32;
-      int rpmpulse = rpm1 / 30;
+      int rpmpulse = rpmraw / 30;
       int rpmsend;
       if (rpmpulse < 30) //power steering is expecting to see engine idle at least.
       {
@@ -495,15 +494,23 @@ void readPedal()
 
 
 {
-  throttlepot = map(Pot_A, 1, 99, 0, 100); //change 1 and 99 to low and high offsets
-  pedal_offset = pedal_map_three[idx_j][idx_k];  // Defualt to sport mode, change to pedal_map_one for ECO and pedal_map_two for Normal
-  targetTorque = (throttlepot * pedal_offset) * 2;
+  throttlepot = map(analogRead(Pot_A), 127, 950, 0, 100); //change 127 and 950 after in car.
+ // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
+  targetTorque = (throttlepot * 2);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
+  if (digitalRead(brakeinput))
+  {
+  }
+  else
+  {
+    targetTorque = 0; //0 Torque if the brake is presed
+  }
 
 }
 
 void inverterComms()
 {
   if (timer50_1.check() == 1) {
+    readPedal();
     torqueRequest = targetTorque;
     curentTorque = torqueRequest;
     if (torqueRequest > (2000))
@@ -517,10 +524,9 @@ void inverterComms()
       Serial.println("--!UNDER TOURQUE!--");
     }
 
-    if (brakeinput == 0)
-    {
-      torqueRequest = 0; //0 Torque if the brake is presed
-    }
+
+    torqueLoByte = lowByte(torqueRequest);
+    torqueHibyte = highByte(torqueRequest);
 
     CAN_message_t msg1;
     msg1.id = (0x287);
@@ -535,73 +541,75 @@ void inverterComms()
     msg1.buf[7] = 0;
     Can0.write(msg1);
     torqueRequest = 0;
+    delay(1);
 
   }
   if (chargerEVSE.check()) {
-      msg.id = 0x371;
-      msg.len = 8;
-      msg.buf[0] = 48;
-      msg.buf[1] = 0;
-      msg.buf[2] = 0;
-      msg.buf[3] = 0;
-      msg.buf[4] = 0;
-      msg.buf[5] = 0;
-      msg.buf[6] = 0;
-      msg.buf[7] = 0;
-      Can0.write(msg);
-      delay(1);
-      msg.id = 0x285;
-      msg.len = 8;
-      msg.buf[0] = 0;
-      msg.buf[1] = 0;
-      msg.buf[2] = 20;
-      msg.buf[3] = 57;
-      msg.buf[4] = 143;
-      msg.buf[5] = 254;
-      msg.buf[6] = 12;
-      msg.buf[7] = 16;
-      Can0.write(msg);
-      delay(1);
+    msg.id = 0x371;
+    msg.len = 8;
+    msg.buf[0] = 48;
+    msg.buf[1] = 0;
+    msg.buf[2] = 0;
+    msg.buf[3] = 0;
+    msg.buf[4] = 0;
+    msg.buf[5] = 0;
+    msg.buf[6] = 0;
+    msg.buf[7] = 0;
+    Can0.write(msg);
+    delay(1);
+    msg.id = 0x285;
+    msg.len = 8;
+    msg.buf[0] = 0;
+    msg.buf[1] = 0;
+    msg.buf[2] = 20;
+    msg.buf[3] = 57;
+    msg.buf[4] = 143;
+    msg.buf[5] = 254;
+    msg.buf[6] = 12;
+    msg.buf[7] = 16;
+    Can0.write(msg);
+    delay(1);
 
-      msg.id = 0x286;
-      msg.len = 8;
-      msg.buf[0] = 0;
-      msg.buf[1] = 0;
-      msg.buf[2] = 0;
-      msg.buf[3] = 61;
-      msg.buf[4] = 0;
-      msg.buf[5] = 0;
-      msg.buf[6] = 33;
-      msg.buf[7] = 0;
-      Can0.write(msg);
-    }
-
-
-
+    msg.id = 0x286;
+    msg.len = 8;
+    msg.buf[0] = 0;
+    msg.buf[1] = 0;
+    msg.buf[2] = 0;
+    msg.buf[3] = 61;
+    msg.buf[4] = 0;
+    msg.buf[5] = 0;
+    msg.buf[6] = 33;
+    msg.buf[7] = 0;
+    Can0.write(msg);
   }
 
 
-  void loop() {
 
-    if (chargemode == 1) //normal driving
-    {
-      Can0.events();
-      closecontactor(); //checks precharge level and close contactor
-      coolant(); // check coolant temperature and swtich on engine bay fan if needed.
-      gauges(); //send information to guages
-      inverterComms();
-
-    }
-    else if (chargemode == 2) // charging
-    {
-      Can0.events();
-      charging();
-      coolant(); // check coolant temperature and swtich on engine bay fan if needed.
-      gauges(); //send information to guages
-    }
-    /// To Do
+}
 
 
+void loop() {
 
+  if (chargemode == 1) //normal driving
+  {
+    Can0.events();
+    closecontactor(); //checks precharge level and close contactor
+    coolant(); // check coolant temperature and swtich on engine bay fan if needed.
+    gauges(); //send information to guages
+    inverterComms();
+    delay(50);
 
   }
+  else if (chargemode == 2) // charging
+  {
+    Can0.events();
+    charging();
+    coolant(); // check coolant temperature and swtich on engine bay fan if needed.
+    gauges(); //send information to guages
+  }
+  /// To Do
+
+
+
+
+}
