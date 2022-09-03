@@ -214,6 +214,7 @@ void setup() {
   //Can0.onReceive(MB2,canSniff);
   Can0.mailboxStatus();
 
+  HVbus = 0;
 
 
   //outputs
@@ -284,16 +285,18 @@ void setup() {
     Serial.print("charge port connected");
     chargemode = 2;
   }
-  delay(1000);
+  delay(10000);
 
 }
 
 void canSniff1(const CAN_message_t &msg) {
   if (msg.id == 0x289)
   {
-    HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
+
+    // HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
     rpmraw = (msg.buf[2] * 256 + msg.buf[3] - 20000); //Outlander inverter RPM
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
+
 
   }
   if (msg.id == 0x355)
@@ -308,7 +311,7 @@ void canSniff1(const CAN_message_t &msg) {
     Batvolt = Batvoltraw / 10;
   }
 
-  if (msg.id == 0x299)//battery voltage from SIMP BMS
+  if (msg.id == 0x299)//inverter messages
   {
 
     //inverter Temps
@@ -320,16 +323,35 @@ void canSniff1(const CAN_message_t &msg) {
     coolanttemp = avgInverterTemp;
   }
 
+  if (msg.id == 0x733)//motor temps
+  {
+
+    motorTemp1 = (msg.buf[0] - 40);
+    motorTemp2 = (msg.buf[2] - 40);
+
+  }
+
   if (msg.id == 0x377) // 12v sense from Charger
   {
+
     AuxBattVolt = float(((msg.buf[0] * 256) + msg.buf[1]) * 0.01);
   }
 
 
   if (msg.id == 0x373) // highest cell voltage from SIMP BMS
   {
+
     Batmaxraw = (( msg.buf[3] << 8) | msg.buf[2]);
     Batmax = Batmaxraw;
+  }
+
+  if (msg.id == 0x389) // not fast enough reporting for contactor control
+  {
+
+    HVbus = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
+
+
+
   }
 
 }
@@ -356,23 +378,18 @@ void coolant()
 void closecontactor() { //--------contactor close cycle
   // if hv bus is within a few volts of battery voltage and OI is sending close main contactor, close main contactor and open precharge. Also activate dc-dc
   HVdiff = Batvolt - HVbus; //calculates difference between battery voltage and HV bus
+  //Serial.println(HVdiff);
+  ///Serial.print("bat volt ");
+  //Serial.println(Batvolt);
 
-  //digitalRead(maincontactorsignal);
-  //maincontactorsingalvalue = digitalRead(maincontactorsignal);
-  // Serial.print (maincontactorsingalvalue);
-  if (HVbus > 250 &&  HVdiff < 5)
+  if (HVbus > 250)// &&  HVdiff < 5)
   {
     digitalWrite (maincontactor, HIGH);
-    /// digitalWrite (startbutton, HIGH);
-    digitalWrite(fwd, HIGH);
-    digitalWrite (dcdcon, HIGH);
+    //Serial.print("close main contactor!");
+
+    //digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
-    // Can IO start
-    CAN_message_t msg1;
-    msg1.id = (0x01);
-    msg1.len = 8;
-    msg1.buf[1] = 0x20;
-    Can0.write(msg1);
+    
 
 
   }
@@ -380,6 +397,7 @@ void closecontactor() { //--------contactor close cycle
   {
     digitalWrite (maincontactor, LOW);
     digitalWrite (negcontactor, HIGH);
+    digitalWrite (precharge, HIGH);
     digitalWrite (dcdcon, LOW);
 
   }
@@ -435,7 +453,7 @@ void gauges() {
 
 void charging() {
 
-  if (timer50_1.check() == 1) { //disable inverter for charging
+  if (timer50_1.check()) { //disable inverter for charging
     CAN_message_t msg1;
     msg1.id = (0x287);
     msg1.len = 8;
@@ -495,8 +513,12 @@ void readPedal()
 
 
 {
-  throttlepot = map(analogRead(Pot_A), 127, 950, 0, 100); //change 127 and 950 after in car.
- // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
+
+  throttlepot = map(analogRead(Pot_A), 520, 880, 0, 100); //change 127 and 950 after in car.
+  if (throttlepot < 0) {
+    throttlepot = 0;
+  }
+  // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
   targetTorque = (throttlepot * 2);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
   if (digitalRead(brakeinput))
   {
@@ -510,7 +532,7 @@ void readPedal()
 
 void inverterComms()
 {
-  if (timer50_1.check() == 1) {
+  if (timer50_1.check()) {
     readPedal();
     torqueRequest = targetTorque;
     curentTorque = torqueRequest;
@@ -529,59 +551,62 @@ void inverterComms()
     torqueLoByte = lowByte(torqueRequest);
     torqueHibyte = highByte(torqueRequest);
 
-    CAN_message_t msg1;
-    msg1.id = (0x287);
-    msg1.len = 8;
-    msg1.buf[0] = 0;
-    msg1.buf[1] = 0;
-    msg1.buf[2] = torqueHibyte;
-    msg1.buf[3] = torqueLoByte;
-    msg1.buf[4] = 0;
-    msg1.buf[5] = 0;
-    msg1.buf[6] = 0x03;
-    msg1.buf[7] = 0;
-    Can0.write(msg1);
+    CAN_message_t msg2;
+    msg2.id = (0x287);
+    msg2.len = 8;
+    msg2.buf[0] = 0;
+    msg2.buf[1] = 0;
+    msg2.buf[2] = torqueHibyte;
+    msg2.buf[3] = torqueLoByte;
+    msg2.buf[4] = 0;
+    msg2.buf[5] = 0;
+    msg2.buf[6] = 0x03;
+    msg2.buf[7] = 0;
+    Can0.write(msg2);
     torqueRequest = 0;
     delay(1);
 
   }
+  
   if (chargerEVSE.check()) {
-    msg.id = 0x371;
-    msg.len = 8;
-    msg.buf[0] = 48;
-    msg.buf[1] = 0;
-    msg.buf[2] = 0;
-    msg.buf[3] = 0;
-    msg.buf[4] = 0;
-    msg.buf[5] = 0;
-    msg.buf[6] = 0;
-    msg.buf[7] = 0;
-    Can0.write(msg);
+    CAN_message_t msg3;
+    msg3.id = 0x371;
+    msg3.len = 8;
+    msg3.buf[0] = 48;
+    msg3.buf[1] = 0;
+    msg3.buf[2] = 0;
+    msg3.buf[3] = 0;
+    msg3.buf[4] = 0;
+    msg3.buf[5] = 0;
+    msg3.buf[6] = 0;
+    msg3.buf[7] = 0;
+    Can0.write(msg3);
     delay(1);
-    msg.id = 0x285;
-    msg.len = 8;
-    msg.buf[0] = 0;
-    msg.buf[1] = 0;
-    msg.buf[2] = 20;
-    msg.buf[3] = 57;
-    msg.buf[4] = 143;
-    msg.buf[5] = 254;
-    msg.buf[6] = 12;
-    msg.buf[7] = 16;
-    Can0.write(msg);
+    CAN_message_t msg4;
+    msg4.id = 0x285;
+    msg4.len = 8;
+    msg4.buf[0] = 0;
+    msg4.buf[1] = 0;
+    msg4.buf[2] = 20;
+    msg4.buf[3] = 57;
+    msg4.buf[4] = 143;
+    msg4.buf[5] = 254;
+    msg4.buf[6] = 12;
+    msg4.buf[7] = 16;
+    Can0.write(msg4);
     delay(1);
-
-    msg.id = 0x286;
-    msg.len = 8;
-    msg.buf[0] = 0;
-    msg.buf[1] = 0;
-    msg.buf[2] = 0;
-    msg.buf[3] = 61;
-    msg.buf[4] = 0;
-    msg.buf[5] = 0;
-    msg.buf[6] = 33;
-    msg.buf[7] = 0;
-    Can0.write(msg);
+    CAN_message_t msg5;
+    msg5.id = 0x286;
+    msg5.len = 8;
+    msg5.buf[0] = 0;
+    msg5.buf[1] = 0;
+    msg5.buf[2] = 0;
+    msg5.buf[3] = 61;
+    msg5.buf[4] = 0;
+    msg5.buf[5] = 0;
+    msg5.buf[6] = 33;
+    msg5.buf[7] = 0;
+    Can0.write(msg5);
   }
 
 
