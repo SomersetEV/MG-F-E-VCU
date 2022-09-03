@@ -66,7 +66,7 @@ int maincontactorsingalvalue = 1;
 
 //Charging
 //int cpwm = 24; 12v signal not used
-//int MG2 = 25;// 12v signal not used was cdsn
+int RSDN = 25;// 12v signal not used was cdsn. Now inverter shutdown
 int negcontactor = 32;
 int simpprox = 26;
 //int simppilot = 27; grounded input, now used for brake light.
@@ -226,7 +226,7 @@ void setup() {
   pinMode(dcdcon, OUTPUT);
   pinMode(chargestart, OUTPUT);
   //pinMode(cpwm, OUTPUT);
-  //  pinMode(MG2, OUTPUT);
+  pinMode(RSDN, OUTPUT);
   pinMode(negcontactor, OUTPUT);
   // pinMode(startbutton, OUTPUT);
   pinMode(fwd, OUTPUT);
@@ -280,6 +280,7 @@ void setup() {
     digitalWrite(rev, HIGH);
     delay (1000);
     digitalWrite (negcontactor, HIGH);
+    digitalWrite (precharge, HIGH);
     Serial.print("charge port connected");
     chargemode = 2;
   }
@@ -603,6 +604,7 @@ void loop() {
   else if (chargemode == 2) // charging
   {
     Can0.events();
+    closecontactor();
     charging();
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     gauges(); //send information to guages
