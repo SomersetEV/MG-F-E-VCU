@@ -285,7 +285,9 @@ void setup() {
     Serial.print("charge port connected");
     chargemode = 2;
   }
-  delay(10000);
+  delay(5000);
+  closecontactor();
+  
 
 }
 
@@ -400,6 +402,21 @@ void closecontactor() { //--------contactor close cycle
     digitalWrite (precharge, HIGH);
     digitalWrite (dcdcon, LOW);
 
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
+    delay (1000);
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
+    delay (1000);
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
+    delay (1000);
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
   }
 }
 
@@ -619,7 +636,7 @@ void loop() {
   if (chargemode == 1) //normal driving
   {
     Can0.events();
-    closecontactor(); //checks precharge level and close contactor
+    //closecontactor(); //checks precharge level and close contactor
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     gauges(); //send information to guages
     inverterComms();
@@ -629,10 +646,10 @@ void loop() {
   else if (chargemode == 2) // charging
   {
     Can0.events();
-    closecontactor();
+   // closecontactor();
     charging();
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
-    gauges(); //send information to guages
+    //gauges(); //send information to guages
   }
   /// To Do
 
