@@ -295,7 +295,7 @@ void canSniff1(const CAN_message_t &msg) {
   if (msg.id == 0x289)
   {
 
-    // HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
+    HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
     rpmraw = (msg.buf[2] * 256 + msg.buf[3] - 20000); //Outlander inverter RPM
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
 
@@ -350,7 +350,7 @@ void canSniff1(const CAN_message_t &msg) {
   if (msg.id == 0x389) // not fast enough reporting for contactor control
   {
 
-    HVbus = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
+    //HVbus = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
 
 
 
