@@ -1,3 +1,28 @@
+/*
+  Copyright (c) 2022 Somerset EV
+  Permission is hereby granted, free of charge, to any person obtaining
+  a copy of this software and associated documentation files (the
+  "Software"), to deal in the Software without restriction, including
+  without limitation the rights to use, copy, modify, merge, publish,
+  distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to
+  the following conditions:
+  The above copyright notice and this permission notice shall be included
+  in all copies or substantial portions of the Software.
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.cur
+  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  -------
+  Outlander inverter code based on repo from AOT93 https://github.com/aot93/Mini-E-VCU
+  
+*/
+
+
 #include <FlexCAN_T4.h>
 #include <Metro.h>
 #include <ADC.h>
@@ -12,10 +37,12 @@ CAN_message_t msg;
 Metro coolanttimer = Metro(1000);
 Metro chargerEVSE = Metro(100);
 Metro gauge100 = Metro(100);
+Metro gauge500 = Metro(500);
 Metro charger800 = Metro(800);
 Metro timer10ms = Metro(10);
 Metro timer100ms = Metro(100);
 Metro timer50_1 = Metro(50); // Inverter timer
+
 
 //Output to IO
 int startbutton = 13;
@@ -446,7 +473,7 @@ void gauges() {
 
   // send signals
 
-  if (gauge100.check()) { //100ms timer
+  if (gauge500.check()) { //500ms timer
     {
       // RPM
       //analogWrite(rpm, 127);
