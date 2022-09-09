@@ -11,8 +11,10 @@ CAN_message_t msg;
 //////timers
 Metro coolanttimer = Metro(1000);
 Metro chargerEVSE = Metro(100);
+Metro gauge100 = Metro(100);
 Metro charger800 = Metro(800);
 Metro timer10ms = Metro(10);
+Metro timer100ms = Metro(100);
 Metro timer50_1 = Metro(50); // Inverter timer
 
 //Output to IO
@@ -74,7 +76,7 @@ int chargestart = 28; // use for DC-DC pn charger?
 //int chargebutton = 12; 12v sinal not used
 
 //HV stuff
-float HVbus;
+int HVbus;
 float HVdiff;
 float Batvolt;
 int Batvoltraw;
@@ -287,7 +289,7 @@ void setup() {
   }
   delay(5000);
   closecontactor();
-  
+
 
 }
 
@@ -304,13 +306,14 @@ void canSniff1(const CAN_message_t &msg) {
   if (msg.id == 0x355)
   {
     Batterysoc = (( msg.buf[1] << 8) | msg.buf[0]);
-
+    //Serial.println("SIMPBMS");
   }
   if (msg.id == 0x356)//battery voltage from SIMP BMS
   {
 
     Batvoltraw = (( msg.buf[1] << 8) | msg.buf[0]);
     Batvolt = Batvoltraw / 10;
+    //Serial.println("SIMPBMS2");
   }
 
   if (msg.id == 0x299)//inverter messages
@@ -320,7 +323,7 @@ void canSniff1(const CAN_message_t &msg) {
     motorTempPeak = (msg.buf[0] - 40);
     inverterTemp1 = (msg.buf[1] - 40);
     inverterTemp2 = (msg.buf[4] - 40);
-
+    //Serial.println("inverter temps");
     avgInverterTemp = (inverterTemp1 + inverterTemp2) / 2;
     coolanttemp = avgInverterTemp;
   }
@@ -349,7 +352,7 @@ void canSniff1(const CAN_message_t &msg) {
 
   if (msg.id == 0x389) // not fast enough reporting for contactor control
   {
-
+    //Serial.println("charger");
     //HVbus = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
 
 
@@ -384,39 +387,41 @@ void closecontactor() { //--------contactor close cycle
   ///Serial.print("bat volt ");
   //Serial.println(Batvolt);
 
-  if (HVbus > 250)// &&  HVdiff < 5)
+  if ((HVbus > 250) &&  HVdiff < 5)
   {
     digitalWrite (maincontactor, HIGH);
     //Serial.print("close main contactor!");
 
     //digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
-    
+
 
 
   }
   else if (HVbus < 250 or HVdiff > 5)
   {
+    digitalWrite (precharge, LOW);
     digitalWrite (maincontactor, LOW);
-    digitalWrite (negcontactor, HIGH);
-    digitalWrite (precharge, HIGH);
+    digitalWrite (negcontactor, LOW);
     digitalWrite (dcdcon, LOW);
+    Serial.print("OPRECHARGE FAILED");
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
+    delay (1000);
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
+    delay (1000);
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
+    delay (1000);
+    digitalWrite(batterylight, HIGH);
+    delay (1000);
+    digitalWrite(batterylight, LOW);
 
-    digitalWrite(batterylight, HIGH);
-    delay (1000);
-    digitalWrite(batterylight, LOW);
-    delay (1000);
-    digitalWrite(batterylight, HIGH);
-    delay (1000);
-    digitalWrite(batterylight, LOW);
-    delay (1000);
-    digitalWrite(batterylight, HIGH);
-    delay (1000);
-    digitalWrite(batterylight, LOW);
-    delay (1000);
-    digitalWrite(batterylight, HIGH);
-    delay (1000);
-    digitalWrite(batterylight, LOW);
+    delay (10000);
   }
 }
 
@@ -441,13 +446,13 @@ void gauges() {
 
   // send signals
 
-  if (chargerEVSE.check()) { //100ms timer
+  if (gauge100.check()) { //100ms timer
     {
       // RPM
       //analogWrite(rpm, 127);
       int rpmpulse = rpmraw / 30;
       int rpmsend;
-      if (rpmpulse < 30) //power steering is expecting to see engine idle at least.
+      if (rpmpulse < 30 or rpmraw > 10000 ) //power steering is expecting to see engine idle at least.
       {
         rpmsend = 30;
       }
@@ -536,7 +541,7 @@ void readPedal()
     throttlepot = 0;
   }
   // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
-  targetTorque = (throttlepot * 2);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
+  targetTorque = (throttlepot * 15);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
   if (digitalRead(brakeinput))
   {
   }
@@ -553,6 +558,8 @@ void inverterComms()
     readPedal();
     torqueRequest = targetTorque;
     curentTorque = torqueRequest;
+    
+    
     if (torqueRequest > (2000))
     {
       torqueRequest = 0;
@@ -563,7 +570,7 @@ void inverterComms()
       torqueRequest = 0;
       Serial.println("--!UNDER TOURQUE!--");
     }
-
+    torqueRequest += 10000;
 
     torqueLoByte = lowByte(torqueRequest);
     torqueHibyte = highByte(torqueRequest);
@@ -584,8 +591,8 @@ void inverterComms()
     delay(1);
 
   }
-  
-  if (chargerEVSE.check()) {
+
+  if (timer100ms.check()) {
     CAN_message_t msg3;
     msg3.id = 0x371;
     msg3.len = 8;
@@ -640,13 +647,13 @@ void loop() {
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     gauges(); //send information to guages
     inverterComms();
-    delay(50);
+
 
   }
   else if (chargemode == 2) // charging
   {
     Can0.events();
-   // closecontactor();
+    // closecontactor();
     charging();
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     //gauges(); //send information to guages
