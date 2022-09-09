@@ -392,7 +392,7 @@ void closecontactor() { //--------contactor close cycle
     digitalWrite (maincontactor, HIGH);
     //Serial.print("close main contactor!");
 
-    //digitalWrite (dcdcon, HIGH);
+    digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
 
 
