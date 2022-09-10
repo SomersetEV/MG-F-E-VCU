@@ -19,7 +19,7 @@
 
   -------
   Outlander inverter code based on repo from AOT93 https://github.com/aot93/Mini-E-VCU
-  
+
 */
 
 
@@ -69,6 +69,7 @@ int avgInverterTemp = 0;
 byte torqueHibyte = 0;
 byte torqueLoByte = 0;
 int torqueRequest = 0;
+int torqueRequest1 = 0;
 int targetTorque = 0;
 int curentTorque = 0;
 int throttlePosition = 0;
@@ -329,6 +330,7 @@ void canSniff1(const CAN_message_t &msg) {
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
 
 
+
   }
   if (msg.id == 0x355)
   {
@@ -380,7 +382,7 @@ void canSniff1(const CAN_message_t &msg) {
   if (msg.id == 0x389) // not fast enough reporting for contactor control
   {
     //Serial.println("charger");
-    //HVbus = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
+    //int HVbus1 = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
 
 
 
@@ -568,7 +570,7 @@ void readPedal()
     throttlepot = 0;
   }
   // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
-  targetTorque = (throttlepot * 15);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
+  targetTorque = (throttlepot * 10);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
   if (digitalRead(brakeinput))
   {
   }
@@ -585,8 +587,6 @@ void inverterComms()
     readPedal();
     torqueRequest = targetTorque;
     curentTorque = torqueRequest;
-    
-    
     if (torqueRequest > (2000))
     {
       torqueRequest = 0;
@@ -597,8 +597,8 @@ void inverterComms()
       torqueRequest = 0;
       Serial.println("--!UNDER TOURQUE!--");
     }
+    torqueRequest *= -1;
     torqueRequest += 10000;
-
     torqueLoByte = lowByte(torqueRequest);
     torqueHibyte = highByte(torqueRequest);
 
