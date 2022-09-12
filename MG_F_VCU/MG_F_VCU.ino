@@ -68,12 +68,12 @@ int inverterTemp2 = 0;
 int avgInverterTemp = 0;
 byte torqueHibyte = 0;
 byte torqueLoByte = 0;
-int torqueRequest = 0;
-int torqueRequest1 = 0;
-int targetTorque = 0;
-int curentTorque = 0;
-int throttlePosition = 0;
-int Pot_A = 18; // was thermistor pin
+int16_t torqueRequest = 0;
+int16_t torqueRequest1 = 0;
+int16_t targetTorque = 0;
+int16_t curentTorque = 0;
+int16_t throttlePosition = 0;
+int16_t Pot_A = 18; // was thermistor pin
 int brakeinput = 27; // ground input, orginally simppilot
 
 int dcdcon = 2;
@@ -670,7 +670,6 @@ void loop() {
   if (chargemode == 1) //normal driving
   {
     Can0.events();
-    //closecontactor(); //checks precharge level and close contactor
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     gauges(); //send information to guages
     inverterComms();
@@ -680,7 +679,6 @@ void loop() {
   else if (chargemode == 2) // charging
   {
     Can0.events();
-    // closecontactor();
     charging();
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
     //gauges(); //send information to guages
