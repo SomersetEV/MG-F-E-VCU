@@ -326,8 +326,15 @@ void canSniff1(const CAN_message_t &msg) {
   {
 
     HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
+    
     rpmraw = (msg.buf[2] * 256 + msg.buf[3] - 20000); //Outlander inverter RPM
+    Serial.println("RPM");
+    Serial.println(rpmraw);
+    Serial.println("   ");
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
+    Serial.println("torque");
+    Serial.println(motorTorque);
+    
 
 
 
@@ -597,14 +604,14 @@ void inverterComms()
       torqueRequest = 0;
       Serial.println("--!UNDER TOURQUE!--");
     }
-    torqueRequest *= -1;
+   // torqueRequest *= -1;
     torqueRequest += 10000;
     torqueLoByte = lowByte(torqueRequest);
     torqueHibyte = highByte(torqueRequest);
 
     CAN_message_t msg2;
     msg2.id = (0x287);
-    msg2.len = 8;
+    msg2.len = 8;`
     msg2.buf[0] = 0;
     msg2.buf[1] = 0;
     msg2.buf[2] = torqueHibyte;
