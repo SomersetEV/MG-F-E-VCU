@@ -37,7 +37,7 @@ CAN_message_t msg;
 Metro coolanttimer = Metro(1000);
 Metro chargerEVSE = Metro(100);
 Metro gauge100 = Metro(100);
-Metro gauge500 = Metro(500);
+Metro gauge200 = Metro(200);
 Metro charger800 = Metro(800);
 Metro timer10ms = Metro(10);
 Metro timer100ms = Metro(100);
@@ -56,6 +56,8 @@ int motortempgauge = 37;
 int fuel = 36;
 float rpmraw;
 int batterylight = 31;
+int rpmpulse;
+int speedopulse;
 
 //Outlander Inverter control
 int motorTorque = 0;
@@ -96,7 +98,7 @@ int maincontactorsingalvalue = 1;
 
 //Charging
 //int cpwm = 24; 12v signal not used
-int RSDN = 25;// 12v signal not used was cdsn. Now inverter shutdown
+int speedo = 25;// 12v signal not used was cdsn. Now inverter shutdown
 int negcontactor = 32;
 int simpprox = 26;
 //int simppilot = 27; grounded input, now used for brake light.
@@ -257,7 +259,7 @@ void setup() {
   pinMode(dcdcon, OUTPUT);
   pinMode(chargestart, OUTPUT);
   //pinMode(cpwm, OUTPUT);
-  pinMode(RSDN, OUTPUT);
+  pinMode(speedo, OUTPUT);
   pinMode(negcontactor, OUTPUT);
   // pinMode(startbutton, OUTPUT);
   pinMode(fwd, OUTPUT);
@@ -275,6 +277,7 @@ void setup() {
   //gauge pin setup
   analogWrite(rpm, 127);
   analogWrite(motortempgauge, 70);
+  analogWrite(speedo, 127);
 
 
   //Switch off contactors on startup
@@ -483,12 +486,12 @@ void gauges() {
 
   // send signals
 
-  if (gauge500.check()) { //500ms timer
+  if (gauge200.check()) { //200ms timer
     {
       // RPM
       //analogWrite(rpm, 127);
-      int rpmpulse = rpmraw / 30;
-      int rpmsend;
+      rpmpulse = rpmraw / 30;
+      /*int rpmsend;
       if (rpmpulse < 30 or rpmraw > 10000 ) //power steering is expecting to see engine idle at least.
       {
         rpmsend = 30;
@@ -497,8 +500,12 @@ void gauges() {
       {
         rpmsend = rpmpulse;
       }
-      analogWriteFrequency(rpm, rpmsend);
+      */
+      analogWriteFrequency(rpm,  rpmpulse);
       analogWrite(fuel, fuelfreq);
+
+      speedopulse = rpm / 22.172;
+      analogWriteFrequency(speedo, speedopulse);
 
     }
   }
