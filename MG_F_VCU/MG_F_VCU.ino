@@ -605,7 +605,7 @@ void inverterComms()
       torqueRequest = 0;
       Serial.println("--!UNDER TOURQUE!--");
     }
-    //torqueRequest *= -1;
+    torqueRequest *= -1;
     torqueRequest += 10000;
     torqueLoByte = lowByte(torqueRequest);
     torqueHibyte = highByte(torqueRequest);
