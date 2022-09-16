@@ -578,7 +578,7 @@ void readPedal()
     throttlepot = 0;
   }
   // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
-  targetTorque = (throttlepot * 10);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
+  targetTorque = (throttlepot * 19);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
   if (digitalRead(brakeinput))
   {
   }
