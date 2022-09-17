@@ -58,6 +58,8 @@ float rpmraw;
 int batterylight = 31;
 int rpmpulse;
 int speedopulse;
+int speedo = 25;// 12v signal not used was cdsn. 
+
 
 //Outlander Inverter control
 int motorTorque = 0;
@@ -98,7 +100,6 @@ int maincontactorsingalvalue = 1;
 
 //Charging
 //int cpwm = 24; 12v signal not used
-int speedo = 25;// 12v signal not used was cdsn. Now inverter shutdown
 int negcontactor = 32;
 int simpprox = 26;
 //int simppilot = 27; grounded input, now used for brake light.
@@ -329,16 +330,16 @@ void canSniff1(const CAN_message_t &msg) {
   {
 
     HVbus = (msg.buf[4] * 256 + msg.buf[5]); //Voltage on Outlander Inverter
-    
+
     rpmraw = (msg.buf[2] * 256 + msg.buf[3] - 20000); //Outlander inverter RPM
-    Serial.println("RPM");
-    Serial.println(rpmraw);
-    Serial.println("   ");
     rpmraw *= -1; // until rpm reported correct way by inverter
+    Serial.println("rp,");
+    Serial.println(rpmraw);
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
-    Serial.println("torque");
-    Serial.println(motorTorque);
-    
+    speedopulse = rpmraw / 21.156;
+    Serial.println("speedo");
+    Serial.println(speedopulse);
+
 
 
 
@@ -492,19 +493,17 @@ void gauges() {
       //analogWrite(rpm, 127);
       rpmpulse = rpmraw / 30;
       /*int rpmsend;
-      if (rpmpulse < 30 or rpmraw > 10000 ) //power steering is expecting to see engine idle at least.
-      {
+        if (rpmpulse < 30 or rpmraw > 10000 ) //power steering is expecting to see engine idle at least.
+        {
         rpmsend = 30;
-      }
-      else
-      {
+        }
+        else
+        {
         rpmsend = rpmpulse;
-      }
+        }
       */
       analogWriteFrequency(rpm,  rpmpulse);
       analogWrite(fuel, fuelfreq);
-
-      speedopulse = rpm / 21.156;
       analogWriteFrequency(speedo, speedopulse);
 
     }
