@@ -504,7 +504,7 @@ void gauges() {
       analogWriteFrequency(rpm,  rpmpulse);
       analogWrite(fuel, fuelfreq);
 
-      speedopulse = rpm / 22.172;
+      speedopulse = rpm / 21.156;
       analogWriteFrequency(speedo, speedopulse);
 
     }
