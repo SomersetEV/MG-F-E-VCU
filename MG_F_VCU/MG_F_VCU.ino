@@ -276,6 +276,8 @@ void canSniff1(const CAN_message_t &msg) {
   {
 
     AuxBattVolt = float(((msg.buf[0] * 256) + msg.buf[1]) * 0.01);
+    Serial.println("Charger Temp");
+    Serial.println(msg.buf[4] - 40);
   }
 
 
@@ -288,7 +290,8 @@ void canSniff1(const CAN_message_t &msg) {
 
   if (msg.id == 0x389) // not fast enough reporting for contactor control
   {
-    //Serial.println("charger");
+    Serial.println("Charger amps");
+    Serial.println(msg.buf[2]);
     //int HVbus1 = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
 
 
