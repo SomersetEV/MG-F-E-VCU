@@ -52,13 +52,13 @@ int rev = 16;
 
 //gauges
 int rpm = 5;
-int motortempgauge = 37;
+//int motortempgauge = 37;  No longer used as needed PWM for speedo
 int fuel = 36;
 float rpmraw;
 int batterylight = 31;
 int rpmpulse;
 int speedopulse;
-int speedo = 25;// 12v signal not used was cdsn. 
+int speedo = 37;// 12v signal not used was cdsn. 
 
 
 //Outlander Inverter control
@@ -150,7 +150,7 @@ void setup() {
   //outputs
   pinMode(rpm, OUTPUT);
   pinMode(enginefan, OUTPUT);
-  pinMode(motortempgauge, OUTPUT);
+ // pinMode(motortempgauge, OUTPUT);
   pinMode(precharge, OUTPUT);
   pinMode(maincontactor, OUTPUT);
   // pinMode(dcdccontrol, OUTPUT);
@@ -174,7 +174,7 @@ void setup() {
 
   //gauge pin setup
   analogWrite(rpm, 127);
-  analogWrite(motortempgauge, 70);
+  //analogWrite(motortempgauge, 70);
   analogWrite(speedo, 127);
 
 
@@ -231,10 +231,9 @@ void canSniff1(const CAN_message_t &msg) {
     rpmraw = (msg.buf[2] * 256 + msg.buf[3] - 20000); //Outlander inverter RPM
     rpmraw *= -1; // until rpm reported correct way by inverter
     rpmpulse = rpmraw / 30;
-    analogWriteFrequency(rpm, rpmpulse);
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
     speedopulse = rpmraw / 21.156;
-    analogWriteFrequency(speedo, speedopulse);
+    
 
 
 
@@ -383,11 +382,11 @@ void gauges() {
 
   // send signals
 
-  /*if (gauge200.check()) { //200ms timer
+  if (gauge200.check()) { //200ms timer
     {
       // RPM
       //analogWrite(rpm, 127);
-      rpmpulse = rpmraw / 30;
+     
       /*int rpmsend;
         if (rpmpulse < 30 or rpmraw > 10000 ) //power steering is expecting to see engine idle at least.
         {
@@ -397,10 +396,10 @@ void gauges() {
         {
         rpmsend = rpmpulse;
         }
-      
+      */
       analogWriteFrequency(rpm,  rpmpulse);
       analogWrite(fuel, fuelfreq);
-      analogWriteFrequency(speedo, speedopulse);
+      analogWriteFrequency(speedo, 150);
 
     }
     
@@ -410,7 +409,7 @@ void gauges() {
 
   // temperature from coolant.
 
-*/
+
 }
 
 void charging() {
