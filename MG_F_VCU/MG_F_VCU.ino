@@ -330,7 +330,6 @@ void closecontactor() { //--------contactor close cycle
   {
     digitalWrite (maincontactor, HIGH);
     //Serial.print("close main contactor!");
-
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
 
@@ -448,7 +447,6 @@ void charging() {
       msg1.buf[6] = 0;
       msg1.buf[7] = 0;
       Can0.write(msg1);
-      digitalWrite (dcdcon, HIGH);
     }
     else
     {
@@ -457,7 +455,6 @@ void charging() {
       msg1.len = 8;
       msg1.buf[2] = 0x00;
       Can0.write(msg1);
-      digitalWrite (dcdcon, LOW);
 
     }
   }
@@ -601,7 +598,7 @@ void loop() {
     Can0.events();
     charging();
     coolant(); // check coolant temperature and swtich on engine bay fan if needed.
-    //gauges(); //send information to guages
+    gauges(); //send information to guages
   }
   /// To Do
 
