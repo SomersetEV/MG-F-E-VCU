@@ -401,7 +401,7 @@ void gauges() {
       */
       analogWriteFrequency(rpm,  rpmpulse);
       analogWrite(fuel, fuelfreq);
-      analogWriteFrequency(speedo, 150);
+      analogWriteFrequency(speedo, speedopulse);
 
     }
     
