@@ -47,7 +47,7 @@ Metro timer50_1 = Metro(50); // Inverter timer
 //Output to IO
 int startbutton = 13;
 int fwd = 15;
-int rev = 16;
+//int rev = 16;
 
 
 //gauges
@@ -58,7 +58,7 @@ float rpmraw;
 int batterylight = 31;
 int rpmpulse;
 int speedopulse;
-int speedo = 37;// was motortempgauage 
+int speedo = 16;// was rev
 
 
 //Outlander Inverter control
@@ -86,6 +86,7 @@ int dcdccontrol = 23; // 5v signal wire, not used
 //coolant temp and engine bay fan
 
 int enginefan = 17;
+int waterpump = 25;
 int Vo;
 int coolanttemp;
 float R1 = 10000;
@@ -150,7 +151,8 @@ void setup() {
   //outputs
   pinMode(rpm, OUTPUT);
   pinMode(enginefan, OUTPUT);
- // pinMode(motortempgauge, OUTPUT);
+  // pinMode(motortempgauge, OUTPUT);
+  pinMode(waterpump, OUTPUT);
   pinMode(precharge, OUTPUT);
   pinMode(maincontactor, OUTPUT);
   // pinMode(dcdccontrol, OUTPUT);
@@ -161,7 +163,7 @@ void setup() {
   pinMode(negcontactor, OUTPUT);
   // pinMode(startbutton, OUTPUT);
   pinMode(fwd, OUTPUT);
-  pinMode(rev, OUTPUT);
+  //pinMode(rev, OUTPUT);
   // pinMode(brake, OUTPUT);
   pinMode(batterylight, OUTPUT);
   //inputs
@@ -209,7 +211,7 @@ void setup() {
   {
 
     digitalWrite(fwd, HIGH);
-    digitalWrite(rev, HIGH);
+    //digitalWrite(rev, HIGH);
     delay (1000);
     digitalWrite (negcontactor, HIGH);
     digitalWrite (precharge, HIGH);
@@ -233,7 +235,7 @@ void canSniff1(const CAN_message_t &msg) {
     rpmpulse = rpmraw / 30;
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
     speedopulse = rpmraw / 21.156;
-    
+
 
 
 
@@ -276,8 +278,8 @@ void canSniff1(const CAN_message_t &msg) {
   {
 
     AuxBattVolt = float(((msg.buf[0] * 256) + msg.buf[1]) * 0.01);
-    Serial.println("Charger Temp");
-    Serial.println(msg.buf[4] - 40);
+    //Serial.println("Charger Temp");
+    //Serial.println(msg.buf[4] - 40);
   }
 
 
@@ -290,8 +292,8 @@ void canSniff1(const CAN_message_t &msg) {
 
   if (msg.id == 0x389) // not fast enough reporting for contactor control
   {
-    Serial.println("Charger amps");
-    Serial.println(msg.buf[2]);
+    //Serial.println("Charger amps");
+    //Serial.println(msg.buf[2]);
     //int HVbus1 = (msg.buf[0] * 2);//56 + msg.buf[5]); //Voltage on Outlander Inverter
 
 
@@ -306,14 +308,15 @@ void coolant()
     //---------Temperature read
     // use canbus from inverter to get coolant temp
     //--------- Activate engine bay fan
-
+    Serial.println("coolant temp");
+    Serial.println(coolanttemp);
     if (coolanttemp > 40)
     {
-      digitalWrite(enginefan, LOW);
+      digitalWrite(enginefan, HIGH);
     }
     else
     {
-      digitalWrite(enginefan, HIGH);
+      digitalWrite(enginefan, LOW);
     }
 
   }
@@ -329,6 +332,7 @@ void closecontactor() { //--------contactor close cycle
   if ((HVbus > 250) &&  HVdiff < 5)
   {
     digitalWrite (maincontactor, HIGH);
+    digitalWrite (waterpump, HIGH);
     //Serial.print("close main contactor!");
     digitalWrite (dcdcon, HIGH);
     digitalWrite (precharge, LOW);
@@ -388,7 +392,7 @@ void gauges() {
     {
       // RPM
       //analogWrite(rpm, 127);
-     
+
       /*int rpmsend;
         if (rpmpulse < 30 or rpmraw > 10000 ) //power steering is expecting to see engine idle at least.
         {
@@ -404,7 +408,7 @@ void gauges() {
       analogWriteFrequency(speedo, speedopulse);
 
     }
-    
+
   }
   //analogWriteFrequency(motortempgauge, 255);
   //To Do
@@ -486,14 +490,14 @@ void readPedal()
   }
   else
   {
-   if (rpmraw > 250)
-   {
-    targetTorque = -150; //0 Torque if the brake is presed
-   }
-   else
-   {
-   targetTorque = 0; //0 Torque if the brake is presed
-   }
+    if (rpmraw > 250)
+    {
+      targetTorque = -150; //0 Torque if the brake is presed
+    }
+    else
+    {
+      targetTorque = 0; //0 Torque if the brake is presed
+    }
   }
 
 }
