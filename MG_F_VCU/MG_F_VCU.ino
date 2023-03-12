@@ -58,7 +58,7 @@ float rpmraw;
 int batterylight = 31;
 int rpmpulse;
 int speedopulse;
-int speedo = 37;// 12v signal not used was cdsn. 
+int speedo = 37;// was motortempgauage 
 
 
 //Outlander Inverter control
