@@ -93,6 +93,12 @@ float R1 = 10000;
 float logR2, R2, T;
 float c1 = 0.9818585903e-03, c2 = 1.995199371e-04, c3 = 1.684445298e-07;
 
+int chargerTemp1 = 0;
+int chargerTemp2 = 0;
+int chargerTemp3 = 0;
+int chargerTemp4 = 0;
+int avgChargerTemp = 0;
+
 //contactors
 int maincontactorsignal = 20;
 int precharge = 22;
@@ -278,6 +284,10 @@ void canSniff1(const CAN_message_t &msg) {
   {
 
     AuxBattVolt = float(((msg.buf[0] * 256) + msg.buf[1]) * 0.01);
+    chargerTemp1 = msg.buf[4] - 40;
+    chargerTemp2 = msg.buf[5] - 40;
+    chargerTemp3 = msg.buf[6] - 40;
+    avgChargerTemp = (chargerTemp1 + chargerTemp2 + chargerTemp3 + chargerTemp4) / 4;
     //Serial.println("Charger Temp");
     //Serial.println(msg.buf[4] - 40);
   }
@@ -469,6 +479,14 @@ void charging() {
     msg1.id = (0x286);
     memcpy (msg1.buf, charger800, 8);
     Can0.write(msg1);
+
+    if (avgChargerTemp < 30) {
+      digitalWrite (waterpump, LOW);
+    }
+    else
+    {
+      digitalWrite (waterpump, HIGH);
+    }
 
   }
 
