@@ -287,7 +287,7 @@ void canSniff1(const CAN_message_t &msg) {
     chargerTemp1 = msg.buf[4] - 40;
     chargerTemp2 = msg.buf[5] - 40;
     chargerTemp3 = msg.buf[6] - 40;
-    avgChargerTemp = (chargerTemp1 + chargerTemp2 + chargerTemp3 + chargerTemp4) / 4;
+    avgChargerTemp = (chargerTemp1 + chargerTemp2 + chargerTemp3 + chargerTemp4) / 3;
     //Serial.println("Charger Temp");
     //Serial.println(msg.buf[4] - 40);
   }
@@ -480,12 +480,12 @@ void charging() {
     memcpy (msg1.buf, charger800, 8);
     Can0.write(msg1);
 
-    if (avgChargerTemp < 30) {
-      digitalWrite (waterpump, LOW);
+    if (chargerTemp1 > 30 or chargerTemp2 > 30 or chargerTemp3 > 30) {//(avgChargerTemp < 30) {
+      digitalWrite (waterpump, HIGH);
     }
     else
     {
-      digitalWrite (waterpump, HIGH);
+      digitalWrite (waterpump, LOW);
     }
 
   }
