@@ -512,7 +512,7 @@ void readPedal()
   }
   else
   {
-    if ((rpmraw > 250) and (regenmode = 1))
+    if ((rpmraw > 250) and (regenmode == 1))
     {
       targetTorque = -150; //0 Torque if the brake is presed
     }
