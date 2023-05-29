@@ -124,6 +124,7 @@ float Batmaxraw;
 
 int chargemode;
 int throttlepot; //throttle reading
+int regenmode = 0;
 
 // car inputs
 int Batterysoc;
@@ -240,7 +241,7 @@ void canSniff1(const CAN_message_t &msg) {
     rpmraw *= -1; // until rpm reported correct way by inverter
     rpmpulse = rpmraw / 30;
     motorTorque = ((((msg.buf[0] * 256) + msg.buf[1]) - 10000) / 10);
-    speedopulse = rpmraw / 21.156;
+    speedopulse = rpmraw; // / 21.156;
 
 
 
@@ -501,20 +502,24 @@ void readPedal()
   if (throttlepot < 0) {
     throttlepot = 0;
   }
+  if (throttlepot > 10) {
+    regenmode = 1;
+  }
   // pedal_offset = pedal_map_three[idx_j][idx_k];  // Not needed until you figure out maps
   targetTorque = (throttlepot * 19);//pedal_offset) * 2; Just direct translation from throttle percentage to amount of torque requested.
-  if (digitalRead(brakeinput))
+  if (digitalRead(brakeinput) )
   {
   }
   else
   {
-    if (rpmraw > 250)
+    if ((rpmraw > 250) and (regenmode = 1))
     {
       targetTorque = -150; //0 Torque if the brake is presed
     }
     else
     {
       targetTorque = 0; //0 Torque if the brake is presed
+      regenmode = 0;
     }
   }
 
