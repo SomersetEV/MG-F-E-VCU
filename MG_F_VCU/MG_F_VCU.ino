@@ -414,9 +414,9 @@ void gauges() {
         rpmsend = rpmpulse;
         }
       */
-      analogWriteFrequency(rpm,  rpmpulse);
+      tone(rpm,  rpmpulse);
       analogWrite(fuel, fuelfreq);
-      analogWriteFrequency(speedo, speedopulse);
+      tone(speedo, speedopulse);
 
     }
 
