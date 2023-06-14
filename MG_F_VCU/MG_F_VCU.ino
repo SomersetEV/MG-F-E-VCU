@@ -98,6 +98,7 @@ int chargerTemp2 = 0;
 int chargerTemp3 = 0;
 int chargerTemp4 = 0;
 int avgChargerTemp = 0;
+int fanstarttemp = 30;
 
 //contactors
 int maincontactorsignal = 20;
@@ -207,7 +208,7 @@ void setup() {
     digitalWrite (precharge, HIGH);   //activate prehcharge on start up
     analogWriteFrequency(rpm, 68);//Start rpm at intial high to simulate engine start.Serial.print("normal startup");
     //digitalWrite(csdn, LOW);
-
+    fanstarttemp = 40;
     Serial.print("normal startup");
     chargemode = 1;
 
@@ -223,6 +224,7 @@ void setup() {
     digitalWrite (negcontactor, HIGH);
     digitalWrite (precharge, HIGH);
     Serial.print("charge port connected");
+    fanstarttemp = 50;
     chargemode = 2;
   }
   delay(5000);
@@ -288,7 +290,7 @@ void canSniff1(const CAN_message_t &msg) {
     chargerTemp1 = msg.buf[4] - 40;
     chargerTemp2 = msg.buf[5] - 40;
     chargerTemp3 = msg.buf[6] - 40;
-    avgChargerTemp = (chargerTemp1 + chargerTemp2 + chargerTemp3 + chargerTemp4) / 3;
+    avgChargerTemp = (chargerTemp1 + chargerTemp2 + chargerTemp3) / 3;
     //Serial.println("Charger Temp");
     //Serial.println(msg.buf[4] - 40);
   }
@@ -321,7 +323,7 @@ void coolant()
     //--------- Activate engine bay fan
     Serial.println("coolant temp");
     Serial.println(coolanttemp);
-    if (coolanttemp > 40)
+    if (coolanttemp > fanstarttemp)
     {
       digitalWrite(enginefan, HIGH);
     }
