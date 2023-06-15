@@ -21,8 +21,6 @@
   Outlander inverter code based on repo from AOT93 https://github.com/aot93/Mini-E-VCU
 
 */
-
-
 #include <FlexCAN_T4.h>
 #include <Metro.h>
 #include <ADC.h>
@@ -113,6 +111,7 @@ int simpprox = 26;
 //int simppilot = 27; grounded input, now used for brake light.
 int chargestart = 28; // use for DC-DC pn charger?
 //int chargebutton = 12; 12v sinal not used
+int chargeamps;
 
 //HV stuff
 int HVbus;
@@ -226,6 +225,14 @@ void setup() {
     Serial.print("charge port connected");
     fanstarttemp = 50;
     chargemode = 2;
+     if (digitalRead(brakeinput) )
+  {
+    chargeamps = 0x78;
+  }
+  else // pedal down on start up for low power charging
+  {
+   chargeamps = 0x37;
+  }
   }
   delay(5000);
   closecontactor();
@@ -477,7 +484,7 @@ void charging() {
   }
 
   if (charger800.check()) {
-    unsigned char charger800[8] = {0x28, 0x0F, 0x78, 0x37, 0x00, 0x00, 0x0A, 0x00};
+    unsigned char charger800[8] = {0x28, 0x0F, chargeamps, 0x37, 0x00, 0x00, 0x0A, 0x00};
     CAN_message_t msg1;
     msg1.id = (0x286);
     memcpy (msg1.buf, charger800, 8);
